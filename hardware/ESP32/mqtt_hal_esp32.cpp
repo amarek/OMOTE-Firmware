@@ -231,4 +231,8 @@ void wifi_shutdown_HAL() {
   WiFi.mode(WIFI_OFF);
 }
 
+void wifi_enable_HAL() {
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+}
+
 #endif

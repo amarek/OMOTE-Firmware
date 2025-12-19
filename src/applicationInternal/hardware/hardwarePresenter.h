@@ -134,6 +134,8 @@ bool getIsWifiConnected();
 void mqtt_loop();
 bool publishMQTTMessage(const char *topic, const char *payload);
 void wifi_shutdown();
+bool get_wifiEnabled();
+void set_wifiEnabled(bool aWifiEnabled);
 #endif
 
 // --- memory usage -----------------------------------------------------------

@@ -2,6 +2,9 @@
 #include "sleep_hal_esp32.h"
 #include "tft_hal_esp32.h"
 #include "keypad_keys_hal_esp32.h"
+#if (ENABLE_WIFI_AND_MQTT == 1)
+#include "mqtt_hal_esp32.h"
+#endif
 
 Preferences preferences;
 
@@ -9,6 +12,9 @@ std::string activeScene;
 std::string activeGUIname;
 int activeGUIlist;
 int lastActiveGUIlistIndex;
+#if (ENABLE_WIFI_AND_MQTT == 1)
+bool wifiEnabled = true;
+#endif
 
 void init_preferences_HAL(void) {
   // Restore settings from internal flash memory
@@ -29,6 +35,9 @@ void init_preferences_HAL(void) {
     activeGUIname = std::string(preferences.getString("currentGUIname").c_str());
     activeGUIlist =(preferences.getInt("currentGUIlist"));
     lastActiveGUIlistIndex = (preferences.getInt("lastActiveIndex"));
+    #if (ENABLE_WIFI_AND_MQTT == 1)
+    wifiEnabled = preferences.getBool("wifiEnabled", true);
+    #endif
 
     // Serial.printf("Preferences restored: blBrightness %d, kbBrightness %d, GUI %s, scene %s\r\n", get_backlightBrightness_HAL(), get_keyboardBrightness_HAL(), activeGUIname.c_str(), activeScene.c_str());
   } else {
@@ -55,6 +64,9 @@ void save_preferences_HAL(void) {
   preferences.putString("currentGUIname", activeGUIname.c_str());
   preferences.putInt("currentGUIlist", activeGUIlist);
   preferences.putInt("lastActiveIndex", lastActiveGUIlistIndex);
+  #if (ENABLE_WIFI_AND_MQTT == 1)
+  preferences.putBool("wifiEnabled", wifiEnabled);
+  #endif
   if (!preferences.getBool("alreadySetUp")) {
     preferences.putBool("alreadySetUp", true);
   }
@@ -85,3 +97,17 @@ int get_lastActiveGUIlistIndex_HAL() {
 void set_lastActiveGUIlistIndex_HAL(int aGUIlistIndex) {
   lastActiveGUIlistIndex = aGUIlistIndex;
 }
+
+#if (ENABLE_WIFI_AND_MQTT == 1)
+bool get_wifiEnabled_HAL() {
+  return wifiEnabled;
+}
+void set_wifiEnabled_HAL(bool aWifiEnabled) {
+  wifiEnabled = aWifiEnabled;
+  if (wifiEnabled) {
+    wifi_enable_HAL();
+  } else {
+    wifi_shutdown_HAL();
+  }
+}
+#endif

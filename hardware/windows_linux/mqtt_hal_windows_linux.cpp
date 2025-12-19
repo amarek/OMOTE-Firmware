@@ -216,12 +216,18 @@ void wifi_shutdown_HAL() {
   if (sockfd != -1) {
     mqtt_disconnect(&mqttClient);
     mqtt_sync(&mqttClient);
+    sockfd = -1;
   }
 
   #if defined(WIN32)
   WSACleanup();
   #endif
 
+  thisAnnounceWiFiconnected_cb(false);
+}
+
+void wifi_enable_HAL() {
+  init_mqtt_HAL();
 }
 
 #endif

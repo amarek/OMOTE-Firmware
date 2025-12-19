@@ -269,6 +269,12 @@ bool publishMQTTMessage(const char *topic, const char *payload) {
 void wifi_shutdown() {
   wifi_shutdown_HAL();
 }
+bool get_wifiEnabled() {
+  return get_wifiEnabled_HAL();
+}
+void set_wifiEnabled(bool aWifiEnabled) {
+  set_wifiEnabled_HAL(aWifiEnabled);
+}
 #endif
 
 // --- memory usage -----------------------------------------------------------

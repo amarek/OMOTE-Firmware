@@ -215,7 +215,9 @@ int main(int argc, char *argv[]) {
 
   // init WiFi - needs to be after init_gui() because WifiLabel must be available
   #if (ENABLE_WIFI_AND_MQTT == 1)
-  init_mqtt();
+  if (get_wifiEnabled()) {
+    init_mqtt();
+  }
   #endif
 
   omote_log_i("Setup finished in %lu ms.\r\n", millis());

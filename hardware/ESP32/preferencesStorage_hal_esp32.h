@@ -13,3 +13,7 @@ int get_activeGUIlist_HAL();
 void set_activeGUIlist_HAL(int anActiveGUIlist);
 int get_lastActiveGUIlistIndex_HAL();
 void set_lastActiveGUIlistIndex_HAL(int aGUIlistIndex);
+#if (ENABLE_WIFI_AND_MQTT == 1)
+bool get_wifiEnabled_HAL();
+void set_wifiEnabled_HAL(bool aWifiEnabled);
+#endif

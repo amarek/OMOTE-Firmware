@@ -1,4 +1,7 @@
 #include <string>
+#if (ENABLE_WIFI_AND_MQTT == 1)
+#include "mqtt_hal_windows_linux.h"
+#endif
 
 enum GUIlists {
 // MAIN_GUI_LIST: we are in the main_gui_list (with the scene selector as first gui), either if a scene is active or not
@@ -21,6 +24,9 @@ std::string activeScene;
 std::string activeGUIname;
 int activeGUIlist;
 int lastActiveGUIlistIndex;
+#if (ENABLE_WIFI_AND_MQTT == 1)
+bool wifiEnabled = true;
+#endif
 
 void init_preferences_HAL(void) {
   // set some values for tests
@@ -56,3 +62,17 @@ int get_lastActiveGUIlistIndex_HAL() {
 void set_lastActiveGUIlistIndex_HAL(int aGUIlistIndex) {
   lastActiveGUIlistIndex = aGUIlistIndex;
 }
+
+#if (ENABLE_WIFI_AND_MQTT == 1)
+bool get_wifiEnabled_HAL() {
+  return wifiEnabled;
+}
+void set_wifiEnabled_HAL(bool aWifiEnabled) {
+  wifiEnabled = aWifiEnabled;
+  if (wifiEnabled) {
+    wifi_enable_HAL();
+  } else {
+    wifi_shutdown_HAL();
+  }
+}
+#endif

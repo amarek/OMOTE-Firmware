@@ -76,6 +76,14 @@ static void showMemoryUsage_event_cb(lv_event_t* e) {
   setShowMemoryUsage(lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED));
 }
 
+#if (ENABLE_WIFI_AND_MQTT == 1)
+// WiFi enable/disable event handler
+static void wifiEnabled_event_cb(lv_event_t* e) {
+  set_wifiEnabled(lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED));
+  save_preferences();
+}
+#endif
+
 void create_tab_content_settings(lv_obj_t* tab) {
 
   // Add content to the settings tab
@@ -185,24 +193,27 @@ void create_tab_content_settings(lv_obj_t* tab) {
   lv_obj_set_style_border_color(lv_dropdown_get_list(drop), lv_color_hex(0x505050), LV_PART_MAIN);
   lv_obj_add_event_cb(drop, timout_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
-  // // Add another label, then a settings box for WiFi
-  // menuLabel = lv_label_create(tab);
-  // lv_label_set_text(menuLabel, "Wi-Fi");
-  // menuBox = lv_obj_create(tab);
-  // lv_obj_set_size(menuBox, lv_pct(100), 80);
-  // lv_obj_set_style_bg_color(menuBox, color_primary, LV_PART_MAIN);
-  // lv_obj_set_style_border_width(menuBox, 0, LV_PART_MAIN);
-  // menuLabel = lv_label_create(menuBox);
-  // lv_label_set_text(menuLabel, "Network");
-  // menuLabel = lv_label_create(menuBox);
-  // lv_label_set_text(menuLabel, LV_SYMBOL_RIGHT);
-  // lv_obj_align(menuLabel, LV_ALIGN_TOP_RIGHT, 0, 0);
-  // menuLabel = lv_label_create(menuBox);
-  // lv_label_set_text(menuLabel, "Password");
-  // lv_obj_align(menuLabel, LV_ALIGN_TOP_LEFT, 0, 32);
-  // menuLabel = lv_label_create(menuBox);
-  // lv_label_set_text(menuLabel, LV_SYMBOL_RIGHT);
-  // lv_obj_align(menuLabel, LV_ALIGN_TOP_RIGHT, 0, 32);
+  #if (ENABLE_WIFI_AND_MQTT == 1)
+  // Add another label, then a settings box for WiFi ----------------------------------------------
+  menuLabel = lv_label_create(tab);
+  lv_label_set_text(menuLabel, "Wi-Fi");
+  menuBox = lv_obj_create(tab);
+  lv_obj_set_size(menuBox, lv_pct(100), 48);
+  lv_obj_set_style_bg_color(menuBox, color_primary, LV_PART_MAIN);
+  lv_obj_set_style_border_width(menuBox, 0, LV_PART_MAIN);
+
+  menuLabel = lv_label_create(menuBox);
+  lv_label_set_text(menuLabel, "Enabled");
+  lv_obj_align(menuLabel, LV_ALIGN_TOP_LEFT, 0, 3);
+  lv_obj_t* wifiToggle = lv_switch_create(menuBox);
+  lv_obj_set_size(wifiToggle, 40, 22);
+  lv_obj_align(wifiToggle, LV_ALIGN_TOP_RIGHT, 0, 0);
+  lv_obj_set_style_bg_color(wifiToggle, lv_color_hex(0x505050), LV_PART_MAIN);
+  lv_obj_add_event_cb(wifiToggle, wifiEnabled_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+  if (get_wifiEnabled()) {
+    lv_obj_add_state(wifiToggle, LV_STATE_CHECKED);
+  }
+  #endif
 
   #if(OMOTE_HARDWARE_REV >= 5)
   // Another setting for the keyboard ----------------------------------------------------------
