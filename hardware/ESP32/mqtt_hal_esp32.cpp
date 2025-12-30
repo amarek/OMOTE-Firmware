@@ -9,6 +9,7 @@
 #include "keyboard_ble_hal_esp32.h"
 #endif
 #include "secrets.h"
+#include <applicationInternal/config/configDownloader.h>
 
 #if (ENABLE_WIFI_AND_MQTT == 1)
 WiFiClient espClient;
@@ -80,6 +81,8 @@ void init_mqtt_HAL(void) {
 }
 
 std::string subscribeTopicOMOTEtest = "OMOTE/test";
+// For loading config from URL
+std::string subscribeTopicOMOTE_configLoadFromUrl = "OMOTE/config/loadFromUrl";
 // For connecting to one or several BLE clients
 std::string subscribeTopicOMOTE_BLEstartAdvertisingForAll        = "OMOTE/BLE/startAdvertisingForAll";
 std::string subscribeTopicOMOTE_BLEstartAdvertisingWithWhitelist = "OMOTE/BLE/startAdvertisingWithWhitelist";
@@ -102,6 +105,12 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
     // Or forward the topic to "void receiveMQTTmessage_cb" in the "commandHandler.cpp", if it is not ESP32 hardware related
     thisAnnounceSubscribedTopics_cb(topicReceived, strPayload);
+
+  } else if (topicReceived == subscribeTopicOMOTE_configLoadFromUrl) {
+    // Load config from URL - payload is the URL
+    if (!strPayload.empty()) {
+      config::downloadAndLoadConfig(strPayload);
+    }
 
   #if (ENABLE_KEYBOARD_BLE == 1)
   } else if (topicReceived == subscribeTopicOMOTE_BLEstartAdvertisingForAll) {
@@ -148,6 +157,7 @@ void mqtt_subscribeTopics() {
   mqttClient.setCallback(&callback);
 
   mqttClient.subscribe(subscribeTopicOMOTEtest.c_str());
+  mqttClient.subscribe(subscribeTopicOMOTE_configLoadFromUrl.c_str());
   mqttClient.subscribe(subscribeTopicOMOTE_BLEstartAdvertisingForAll.c_str());
   mqttClient.subscribe(subscribeTopicOMOTE_BLEstartAdvertisingWithWhitelist.c_str());
   mqttClient.subscribe(subscribeTopicOMOTE_BLEstartAdvertisingDirected.c_str());

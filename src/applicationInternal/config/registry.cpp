@@ -5,7 +5,11 @@
 #include <applicationInternal/scenes/sceneRegistry.h>
 #include <applicationInternal/commandHandler.h>
 #include <applicationInternal/omote_log.h>
+#include <applicationInternal/gui/guiMemoryOptimizer.h>
 #include <scenes/scene__default.h>
+#if (ENABLE_WIFI_AND_MQTT == 1)
+#include <applicationInternal/config/configDownloader.h>
+#endif
 
 config::DynamicScene allOff("Off");
 
@@ -111,8 +115,44 @@ Device* config::getDevice(const std::string& id) {
     return NULL;
 }
 
+void config::clear() {
+    // Clear config::Scene objects
+    for (auto& kv : g_scenes) {
+        if (kv.second != &allOff) {
+            delete kv.second;
+        }
+    }
+    g_scenes.clear();
+
+    // Clear config::Device objects
+    for (auto* dev : g_devices) {
+        delete dev;
+    }
+    g_devices.clear();
+
+    // Clear registered scenes in sceneRegistry
+    clear_registered_scenes();
+
+    omote_log_i("Config cleared");
+}
+
+void config::reload(const char* json) {
+    clear();
+    parseConfig(json);
+    registerScene(&allOff, NULL);
+    registerDefaultKeys();
+    omote_log_i("Config reloaded");
+}
+
 void config::init() {
-    parseConfig();
+    #if (ENABLE_WIFI_AND_MQTT == 1)
+    // Use initConfig which checks for persisted config first
+    initConfig();
+    #else
+    // No WiFi, use embedded config directly
+    parseConfig(nullptr);
+    #endif
+
     registerScene(&allOff, NULL);
     registerDefaultKeys();
     std::string lastScene = gui_memoryOptimizer_getActiveSceneName();

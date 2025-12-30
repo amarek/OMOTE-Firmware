@@ -203,10 +203,20 @@ void parseScene(JsonPair def) {
     }
 }
 
-void parseConfig() {
+void parseConfig(const char* json) {
     omote_log_i("Loading configuration");
-    
-    loadConfig(configuration);
+
+    if (json != nullptr) {
+        // Parse provided JSON string
+        DeserializationError error = deserializeJson(configuration, json);
+        if (error) {
+            omote_log_e("JSON parse error: %s", error.c_str());
+            return;
+        }
+    } else {
+        // Use embedded config
+        loadConfig(configuration);
+    }
 
     JsonObject root = configuration.as<JsonObject>();
     

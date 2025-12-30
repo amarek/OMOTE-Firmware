@@ -23,6 +23,12 @@ void set_scene_being_handled(const std::string& sceneName) {
     scene_being_handled = sceneName;
 }
 
+void clear_registered_scenes() {
+  registered_scenes.clear();
+  scenes_on_sceneSelectionGUI.clear();
+  scene_being_handled = "";
+}
+
 void register_scene(
   std::string a_scene_name,
   scene_setKeys a_scene_setKeys,

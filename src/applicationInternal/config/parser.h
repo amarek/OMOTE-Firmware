@@ -1,2 +1,2 @@
 #pragma once
-void parseConfig();
+void parseConfig(const char* json = nullptr);

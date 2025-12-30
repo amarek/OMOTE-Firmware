@@ -39,6 +39,8 @@ void register_scene(
   gui_list a_gui_list = NULL,
   uint16_t a_activate_scene_command = 0);
 
+void clear_registered_scenes();
+
 bool sceneExists(std::string sceneName);
 const std::string& get_scene_being_handled();
 void set_scene_being_handled(const std::string& sceneName);
