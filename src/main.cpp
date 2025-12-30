@@ -220,7 +220,7 @@ int main(int argc, char *argv[]) {
   }
   #endif
 
-  omote_log_i("Setup finished in %lu ms.\r\n", millis());
+  omote_log_w("Setup finished in %lu ms.\r\n", millis());
 
   #if defined(WIN32) || defined(__linux__) || defined(__APPLE__)
   // In Windows/Linux there is no loop function that is automatically being called. So we have to do this on our own infinitely here in main()
