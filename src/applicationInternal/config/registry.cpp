@@ -136,12 +136,13 @@ void config::clear() {
     omote_log_i("Config cleared");
 }
 
-void config::reload(const char* json) {
+config::ConfigLoadResult config::reload(const char* json) {
     clear();
-    parseConfig(json);
+    ConfigLoadResult result = parseConfig(json);
     registerScene(&allOff, NULL);
     registerDefaultKeys();
     omote_log_i("Config reloaded");
+    return result;
 }
 
 void config::init() {

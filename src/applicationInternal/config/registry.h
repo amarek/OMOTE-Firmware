@@ -1,6 +1,7 @@
 #pragma once
 #include "device.h"
 #include "scene.h"
+#include "yamlToJson.h"
 #include <applicationInternal/scenes/sceneRegistry.h>
 
 namespace config {
@@ -12,5 +13,5 @@ namespace config {
     std::vector<Device*>& getDevices();
     void init();
     void clear();
-    void reload(const char* json);
+    ConfigLoadResult reload(const char* json);
 }

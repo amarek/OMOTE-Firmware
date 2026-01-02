@@ -1,6 +1,8 @@
 #include <string>
 #include "mqtt_hal_windows_linux.h"
 #include "secrets.h"
+#include <applicationInternal/config/configDownloader.h>
+#include <applicationInternal/gui/gui_configStatus.h>
 
 #if (ENABLE_WIFI_AND_MQTT == 1)
 #include <stdarg.h>
@@ -56,6 +58,9 @@ bool getIsWifiConnected_HAL() {
 }
 
 std::string subscribeTopicOMOTEtest = "OMOTE/test";
+std::string subscribeTopicOMOTE_configLoadFromUrl = "OMOTE/config/loadFromUrl";
+// For config commands (payload: "clear", etc.)
+std::string subscribeTopicOMOTE_configCommand = "OMOTE/config/command";
 // For connecting to one or several BLE clients
 std::string subscribeTopicOMOTE_BLEstartAdvertisingForAll        = "OMOTE/BLE/startAdvertisingForAll";
 std::string subscribeTopicOMOTE_BLEstartAdvertisingWithWhitelist = "OMOTE/BLE/startAdvertisingWithWhitelist";
@@ -85,6 +90,21 @@ void publish_callback(void** state, struct mqtt_response_publish *publish) {
       // Or forward the topic to "void receiveMQTTmessage_cb" in the "commandHandler.cpp", if it is not Windows/Linux hardware related
       thisAnnounceSubscribedTopics_cb(topic, payload);
 
+    } else if (topic == subscribeTopicOMOTE_configLoadFromUrl) {
+      // Load config from URL - payload is the URL
+      if (!payload.empty()) {
+        configStatus_showDownloading();
+        config::ConfigLoadResult result = config::downloadAndLoadConfig(payload);
+        configStatus_showResult(result);
+      }
+
+    } else if (topic == subscribeTopicOMOTE_configCommand) {
+      // Config commands
+      if (payload == "clear") {
+        config::ConfigLoadResult result = config::clearPersistedConfig();
+        configStatus_showResult(result);
+      }
+
     } else {
       // forward all other topics to the commandHandler
       thisAnnounceSubscribedTopics_cb(topic, payload);
@@ -93,6 +113,8 @@ void publish_callback(void** state, struct mqtt_response_publish *publish) {
 
 void mqtt_subscribeTopics() {
   mqtt_subscribe(&mqttClient, subscribeTopicOMOTEtest.c_str(), 2);
+  mqtt_subscribe(&mqttClient, subscribeTopicOMOTE_configLoadFromUrl.c_str(), 2);
+  mqtt_subscribe(&mqttClient, subscribeTopicOMOTE_configCommand.c_str(), 2);
   mqtt_subscribe(&mqttClient, subscribeTopicOMOTE_BLEstartAdvertisingForAll.c_str(), 2);
   mqtt_subscribe(&mqttClient, subscribeTopicOMOTE_BLEstartAdvertisingWithWhitelist.c_str(), 2);
   mqtt_subscribe(&mqttClient, subscribeTopicOMOTE_BLEstartAdvertisingDirected.c_str(), 2);

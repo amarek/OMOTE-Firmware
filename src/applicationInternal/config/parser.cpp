@@ -2,6 +2,7 @@
 #include <embedded_config.h>
 #include <applicationInternal/hardware/hardwarePresenter.h>
 #include <applicationInternal/config/registry.h>
+#include <applicationInternal/config/parser.h>
 #include <applicationInternal/commandHandler.h>
 #include <applicationInternal/omote_log.h>
 #include "gui_devices.h"
@@ -10,6 +11,25 @@
 using namespace config;
 
 JsonDocument configuration;
+
+// Current result for collecting errors during parsing
+static ConfigLoadResult* currentResult = nullptr;
+
+static void addParseError(const std::string& msg) {
+    if (currentResult) {
+        currentResult->addError(ConfigError::CONFIG_VALIDATION, msg);
+    } else {
+        omote_log_e("%s", msg.c_str());
+    }
+}
+
+static void addParseWarning(const std::string& msg) {
+    if (currentResult) {
+        currentResult->addWarning(ConfigError::CONFIG_VALIDATION, msg);
+    } else {
+        omote_log_w("%s", msg.c_str());
+    }
+}
 
 typedef IRprotocols_new IRProtocolType;
 
@@ -36,7 +56,7 @@ static IRProtocolType toProtoType(const char* proto)
 
 void parseDevice(JsonPair device)
 {
-
+    omote_log_d("Parsing device: %s", device.key().c_str());
     Device* dev = new Device(device);
 
     const char* protoStr = device.value()["protocol"];
@@ -44,8 +64,8 @@ void parseDevice(JsonPair device)
     IRProtocolType protoType = toProtoType(protoStr);
 
     if (protoType == IR_PROTOCOL_UNKNOWN) {
-        omote_log_e("unsupported protocol %s (skip %s)",
-                      protoStr, device.key());
+        addParseError("unsupported protocol " + std::string(protoStr ? protoStr : "null") +
+                      " (skip " + std::string(device.key().c_str()) + ")");
         return;
     }
 
@@ -62,13 +82,13 @@ void parseDevice(JsonPair device)
         uint8_t     repeats    = obj["repeats"] | 3;        
         
         if (!name || !protoStr || !dataStr) {
-            omote_log_e("malformed entry, skipped");
+            addParseError("malformed entry, skipped");
             continue;
         }
 
         if(!nbits) {
             if(defaultBits == 0) {
-                omote_log_e("bits needs to be defined for %s", protoStr);
+                addParseError("bits needs to be defined for " + std::string(protoStr));
                 continue;
             }
             nbits = defaultBits;
@@ -105,12 +125,13 @@ const RegisteredCommand* parseCommandReference(JsonObject cmdRef,
     if ((allowed & AllowedReferences::Device) && cmdRef["device"]) {
         Device* dev = getDevice((const char*)cmdRef["device"]);
         if(dev == NULL) {
-            omote_log_w("Unknown device reference: %s", (const char*)cmdRef["device"]);
+            addParseWarning("Unknown device reference: " + std::string((const char*)cmdRef["device"]));
             return NULL;
         }
         cmd = dev->getCommand(cmdRef["command"].as<const char*>());
         if(cmd == NULL) {
-            omote_log_w("Unknown command reference: %s/%s", (const char*)cmdRef["device"], (const char*)cmdRef["command"]);
+            addParseWarning("Unknown command reference: " + std::string((const char*)cmdRef["device"]) +
+                           "/" + std::string(cmdRef["command"].as<const char*>()));
             return NULL;
         }
         omote_log_i("Parsed command reference: %s/%s\n", (const char*)cmdRef["device"], (const char*)cmdRef["command"]);
@@ -118,13 +139,13 @@ const RegisteredCommand* parseCommandReference(JsonObject cmdRef,
     else if ((allowed & AllowedReferences::Scene) && cmdRef["scene"]) {
         Scene* scene = getScene((const char*)cmdRef["scene"]);
         if(scene == NULL) {
-            omote_log_w("Unknown scene command reference: %s", (const char*)cmdRef["scene"]);
+            addParseWarning("Unknown scene command reference: " + std::string((const char*)cmdRef["scene"]));
             return NULL;
         }
         cmd = &scene->command;
     }
     if(cmd == NULL) {
-        omote_log_e("No allowed command references found.");
+        addParseError("No allowed command references found.");
     }
     return cmd;
 }
@@ -157,7 +178,8 @@ void parseScene(JsonPair def) {
     if(keys_default) {
         Device* dev = getDevice(keys_default);
         if(dev == NULL) {
-            omote_log_w("Unknown device reference: %s in %s", keys_default, scene->displayName());
+            addParseWarning("Unknown device reference: " + std::string(keys_default) +
+                           " in " + std::string(scene->displayName()));
         }
         else {
             scene->keys = dev->defaultKeys;
@@ -203,15 +225,20 @@ void parseScene(JsonPair def) {
     }
 }
 
-void parseConfig(const char* json) {
+config::ConfigLoadResult parseConfig(const char* json) {
+    config::ConfigLoadResult result;
+    currentResult = &result;
+
     omote_log_i("Loading configuration");
 
     if (json != nullptr) {
         // Parse provided JSON string
         DeserializationError error = deserializeJson(configuration, json);
         if (error) {
-            omote_log_e("JSON parse error: %s", error.c_str());
-            return;
+            result.addError(config::ConfigError::JSON_PARSE,
+                           "JSON parse error: " + std::string(error.c_str()));
+            currentResult = nullptr;
+            return result;
         }
     } else {
         // Use embedded config
@@ -219,7 +246,7 @@ void parseConfig(const char* json) {
     }
 
     JsonObject root = configuration.as<JsonObject>();
-    
+
     JsonObject devices = root["devices"].as<JsonObject>();
     for(JsonPair kv: devices) {
         parseDevice(kv);
@@ -232,10 +259,13 @@ void parseConfig(const char* json) {
     for(JsonPair kv: scenes) {
         allocateScene(kv);
     }
-    
+
     for(JsonPair kv: scenes) {
         parseScene(kv);
     }
+
+    currentResult = nullptr;
+    return result;
 }
 
 

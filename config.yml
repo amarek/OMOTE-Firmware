@@ -572,43 +572,43 @@ devices:
       nbits: 48
       repeats: 0
       map_short: BLUE      
-    - name: 1
+    - name: "1"
       data: '0x40040D000805'
       nbits: 48
       repeats: 0
-    - name: 2
+    - name: "2"
       data: '0x40040D008885'
       nbits: 48
       repeats: 0
-    - name: 3
+    - name: "3"
       data: '0x40040D004845'
       nbits: 48
       repeats: 0
-    - name: 4
+    - name: "4"
       data: '0x40040D00C8C5'
       nbits: 48
       repeats: 0
-    - name: 5
+    - name: "5"
       data: '0x40040D002825'
       nbits: 48
       repeats: 0
-    - name: 6
+    - name: "6"
       data: '0x40040D00A8A5'
       nbits: 48
       repeats: 0
-    - name: 7
+    - name: "7"
       data: '0x40040D006865'
       nbits: 48
       repeats: 0
-    - name: 8
+    - name: "8"
       data: '0x40040D00E8E5'
       nbits: 48
       repeats: 0
-    - name: 9
+    - name: "9"
       data: '0x40040D001815'
       nbits: 48
       repeats: 0
-    - name: 0
+    - name: "0"
       data: '0x40040D009895'
       nbits: 48
       repeats: 0           

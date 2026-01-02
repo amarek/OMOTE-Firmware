@@ -1,63 +1,50 @@
-#include <HTTPClient.h>
-#include <WiFi.h>
-#include <SPIFFS.h>
-#include <ArduinoJson.h>
 #include <applicationInternal/config/configDownloader.h>
 #include <applicationInternal/config/yamlToJson.h>
 #include <applicationInternal/config/registry.h>
 #include <applicationInternal/config/parser.h>
 #include <applicationInternal/omote_log.h>
+#include <ArduinoJson.h>
+#include <fstream>
+#include <sstream>
+#include <cstdio>
 
 #if (ENABLE_WIFI_AND_MQTT == 1)
 
 namespace config {
 
-static const char* CONFIG_FILE_PATH = "/config.json";
+static const char* CONFIG_FILE_PATH = "config.json";
 
 static bool saveConfigToStorage(const std::string& json) {
-    if (!SPIFFS.begin(true)) {
-        omote_log_e("Failed to mount SPIFFS");
-        return false;
-    }
-
-    File file = SPIFFS.open(CONFIG_FILE_PATH, FILE_WRITE);
-    if (!file) {
+    std::ofstream file(CONFIG_FILE_PATH);
+    if (!file.is_open()) {
         omote_log_e("Failed to open config file for writing");
         return false;
     }
 
-    size_t written = file.print(json.c_str());
+    file << json;
     file.close();
 
-    if (written != json.length()) {
+    if (file.fail()) {
         omote_log_e("Failed to write complete config file");
         return false;
     }
 
-    omote_log_i("Config saved to storage (%d bytes)", written);
+    omote_log_i("Config saved to storage (%d bytes)", json.length());
     return true;
 }
 
 static bool loadConfigFromStorage(std::string& json) {
-    if (!SPIFFS.begin(true)) {
-        omote_log_e("Failed to mount SPIFFS");
+    std::ifstream file(CONFIG_FILE_PATH);
+    if (!file.is_open()) {
         return false;
     }
 
-    if (!SPIFFS.exists(CONFIG_FILE_PATH)) {
-        return false;
-    }
-
-    File file = SPIFFS.open(CONFIG_FILE_PATH, FILE_READ);
-    if (!file) {
-        omote_log_e("Failed to open config file for reading");
-        return false;
-    }
-
-    json = file.readString().c_str();
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    json = buffer.str();
     file.close();
 
-    omote_log_w("Config loaded from storage (%d bytes)", json.length());
+    omote_log_i("Config loaded from storage (%d bytes)", json.length());
     return true;
 }
 
@@ -103,32 +90,24 @@ void initConfig() {
 ConfigLoadResult downloadAndLoadConfig(const std::string& url) {
     ConfigLoadResult result;
 
-    if (!WiFi.isConnected()) {
-        result.addError(ConfigError::CONFIG_VALIDATION, "WiFi not connected");
-        return result;
-    }
+    // HTTP download not supported in emulator, but we can load from a local file
+    // Treat URL as a local file path for testing
+    omote_log_i("Loading config from local file: %s", url.c_str());
 
-    omote_log_w("Downloading config from: %s", url.c_str());
-
-    HTTPClient http;
-    http.begin(url.c_str());
-    http.setTimeout(10000);
-
-    int httpCode = http.GET();
-
-    if (httpCode != HTTP_CODE_OK) {
+    std::ifstream file(url);
+    if (!file.is_open()) {
         result.addError(ConfigError::CONFIG_VALIDATION,
-                       "HTTP GET failed, code: " + std::to_string(httpCode));
-        http.end();
+                       "Failed to open file: " + url);
         return result;
     }
 
-    String payload = http.getString();
-    http.end();
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string content = buffer.str();
+    file.close();
 
-    omote_log_i("Downloaded %d bytes", payload.length());
+    omote_log_i("Read %d bytes from file", content.length());
 
-    std::string content(payload.c_str());
     std::string json;
 
     // Check if it's YAML or JSON
@@ -154,18 +133,21 @@ ConfigLoadResult downloadAndLoadConfig(const std::string& url) {
         json = yamlResult.json;
     }
 
+    omote_log_i("Validating JSON: %s", json.c_str());    
     // Validate the new config before applying
     if (!validateJson(json, result)) {
         return result;
     }
 
+    omote_log_i("Saving JSON");        
     // Save to storage
     if (!saveConfigToStorage(json)) {
         result.addError(ConfigError::CONFIG_VALIDATION, "Failed to persist config");
         return result;
     }
 
-    // Reload config (clear + parse + re-register defaults)
+
+    omote_log_i("Re-loading");            
     ConfigLoadResult reloadResult = reload(json.c_str());
 
     // Copy any warnings/errors from reload
@@ -180,7 +162,7 @@ ConfigLoadResult downloadAndLoadConfig(const std::string& url) {
     }
 
     if (result.success) {
-        omote_log_w("Config downloaded and applied successfully");
+        omote_log_i("Config loaded and applied successfully");
     }
     return result;
 }
@@ -188,13 +170,11 @@ ConfigLoadResult downloadAndLoadConfig(const std::string& url) {
 ConfigLoadResult clearPersistedConfig() {
     ConfigLoadResult result;
 
-    if (!SPIFFS.begin(true)) {
-        result.addError(ConfigError::CONFIG_VALIDATION, "Failed to mount SPIFFS");
-        return result;
-    }
-
-    if (SPIFFS.exists(CONFIG_FILE_PATH)) {
-        if (!SPIFFS.remove(CONFIG_FILE_PATH)) {
+    // Check if file exists and delete it
+    std::ifstream checkFile(CONFIG_FILE_PATH);
+    if (checkFile.good()) {
+        checkFile.close();
+        if (std::remove(CONFIG_FILE_PATH) != 0) {
             result.addError(ConfigError::CONFIG_VALIDATION, "Failed to delete config file");
             return result;
         }

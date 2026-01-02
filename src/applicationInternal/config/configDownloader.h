@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <applicationInternal/config/yamlToJson.h>
 
 namespace config {
 
@@ -25,21 +26,20 @@ void initConfig();
  * The existing config is NOT cleared until the new one is validated.
  *
  * @param url The URL to download the config from
- * @return true on success, false on failure
+ * @return ConfigLoadResult with success status and any errors/warnings
  */
-bool downloadAndLoadConfig(const std::string& url);
+ConfigLoadResult downloadAndLoadConfig(const std::string& url);
 
 /**
- * Check if a persisted config exists in local storage.
+ * Clear the persisted config and reload embedded config.
  *
- * @return true if config file exists
+ * This function:
+ * 1. Deletes the persisted config from storage
+ * 2. Clears the current runtime config
+ * 3. Loads the embedded config
+ *
+ * @return ConfigLoadResult with success status and any errors/warnings
  */
-bool hasPersistedConfig();
-
-/**
- * Delete the persisted config from local storage.
- * Next boot will use embedded config.
- */
-void deletePersistedConfig();
+ConfigLoadResult clearPersistedConfig();
 
 } // namespace config

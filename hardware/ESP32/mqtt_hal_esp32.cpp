@@ -10,6 +10,7 @@
 #endif
 #include "secrets.h"
 #include <applicationInternal/config/configDownloader.h>
+#include <applicationInternal/gui/gui_configStatus.h>
 
 #if (ENABLE_WIFI_AND_MQTT == 1)
 WiFiClient espClient;
@@ -83,6 +84,8 @@ void init_mqtt_HAL(void) {
 std::string subscribeTopicOMOTEtest = "OMOTE/test";
 // For loading config from URL
 std::string subscribeTopicOMOTE_configLoadFromUrl = "OMOTE/config/loadFromUrl";
+// For config commands (payload: "clear", etc.)
+std::string subscribeTopicOMOTE_configCommand = "OMOTE/config/command";
 // For connecting to one or several BLE clients
 std::string subscribeTopicOMOTE_BLEstartAdvertisingForAll        = "OMOTE/BLE/startAdvertisingForAll";
 std::string subscribeTopicOMOTE_BLEstartAdvertisingWithWhitelist = "OMOTE/BLE/startAdvertisingWithWhitelist";
@@ -109,7 +112,16 @@ void callback(char* topic, byte* payload, unsigned int length) {
   } else if (topicReceived == subscribeTopicOMOTE_configLoadFromUrl) {
     // Load config from URL - payload is the URL
     if (!strPayload.empty()) {
-      config::downloadAndLoadConfig(strPayload);
+      configStatus_showDownloading();
+      config::ConfigLoadResult result = config::downloadAndLoadConfig(strPayload);
+      configStatus_showResult(result);
+    }
+
+  } else if (topicReceived == subscribeTopicOMOTE_configCommand) {
+    // Config commands
+    if (strPayload == "clear") {
+      config::ConfigLoadResult result = config::clearPersistedConfig();
+      configStatus_showResult(result);
     }
 
   #if (ENABLE_KEYBOARD_BLE == 1)
@@ -158,6 +170,7 @@ void mqtt_subscribeTopics() {
 
   mqttClient.subscribe(subscribeTopicOMOTEtest.c_str());
   mqttClient.subscribe(subscribeTopicOMOTE_configLoadFromUrl.c_str());
+  mqttClient.subscribe(subscribeTopicOMOTE_configCommand.c_str());
   mqttClient.subscribe(subscribeTopicOMOTE_BLEstartAdvertisingForAll.c_str());
   mqttClient.subscribe(subscribeTopicOMOTE_BLEstartAdvertisingWithWhitelist.c_str());
   mqttClient.subscribe(subscribeTopicOMOTE_BLEstartAdvertisingDirected.c_str());

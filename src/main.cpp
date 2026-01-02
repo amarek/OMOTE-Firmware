@@ -190,8 +190,11 @@ int main(int argc, char *argv[]) {
   register_scene_allOff();
   // Only show these scenes on the sceneSelection gui. If you don't set this explicitely, by default all registered scenes are shown.
   set_scenes_on_sceneSelectionGUI({scene_name_TV, scene_name_fireTV, scene_name_chromecast, scene_name_appleTV});
-  #else 
+  #else
+  unsigned long t;
+  t = millis();
   config::init();
+  omote_log_w("Config initialized in %lu ms.\r\n", millis() - t);
   #endif
   
   // init GUI - will initialize tft, touch and lvgl

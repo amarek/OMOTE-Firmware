@@ -1,18 +1,17 @@
 #include "yamlToJson.h"
 #include <vector>
 #include <sstream>
-#include <cstring>
-#include <applicationInternal/omote_log.h>
 
 namespace config {
 
 namespace {
 
-struct Line {
+struct YamlLine {
     int indent;
     std::string key;
     std::string value;
     bool isList;
+    int lineNum;
 };
 
 std::string trim(const std::string& s) {
@@ -39,211 +38,282 @@ std::string escapeJson(const std::string& s) {
 
 std::string unquote(const std::string& s) {
     if (s.length() >= 2) {
-        if ((s[0] == '"' && s[s.length()-1] == '"') ||
-            (s[0] == '\'' && s[s.length()-1] == '\'')) {
+        if ((s[0] == '"' && s.back() == '"') || (s[0] == '\'' && s.back() == '\'')) {
             return s.substr(1, s.length() - 2);
         }
     }
     return s;
 }
 
-int countIndent(const std::string& line) {
-    int count = 0;
-    for (char c : line) {
-        if (c == ' ') count++;
-        else break;
+bool isQuoted(const std::string& s) {
+    if (s.length() >= 2) {
+        return (s[0] == '"' && s.back() == '"') || (s[0] == '\'' && s.back() == '\'');
     }
-    return count;
+    return false;
 }
 
-Line parseLine(const std::string& rawLine) {
-    Line result = {0, "", "", false};
+std::string valueToJson(const std::string& val) {
+    // If value was quoted in YAML, always treat as string
+    bool wasQuoted = isQuoted(val);
+    std::string v = unquote(val);
 
-    // Get indent
-    result.indent = countIndent(rawLine);
+    if (!wasQuoted) {
+        // Check for boolean
+        if (v == "true" || v == "false") return v;
 
-    std::string line = trim(rawLine);
+        // Check for null
+        if (v == "null" || v == "~") return "null";
 
-    // Skip empty lines and comments
-    if (line.empty() || line[0] == '#') {
-        result.key = "";
-        return result;
-    }
-
-    // Check for list item
-    if (line[0] == '-') {
-        result.isList = true;
-        line = trim(line.substr(1));
-        if (line.empty()) {
-            return result;
+        // Check for number
+        if (!v.empty()) {
+            bool isNumber = true;
+            bool hasDecimal = false;
+            for (size_t i = 0; i < v.length(); i++) {
+                char c = v[i];
+                if (i == 0 && (c == '-' || c == '+')) continue;
+                if (c == '.' && !hasDecimal) { hasDecimal = true; continue; }
+                if (!isdigit(c)) { isNumber = false; break; }
+            }
+            if (isNumber && !v.empty()) {
+                // Don't treat strings starting with 0 as numbers (except "0" itself)
+                if (v.length() == 1 || v[0] != '0' || hasDecimal) {
+                    return v;
+                }
+            }
         }
     }
 
-    // Find key: value separator
-    size_t colonPos = line.find(':');
-    if (colonPos != std::string::npos) {
-        result.key = trim(line.substr(0, colonPos));
-        std::string afterColon = line.substr(colonPos + 1);
-        result.value = trim(afterColon);
-    } else {
-        // No colon - entire line is the value (for list items)
-        result.value = line;
+    return "\"" + escapeJson(v) + "\"";
+}
+
+std::vector<YamlLine> parseYaml(const std::string& yaml) {
+    std::vector<YamlLine> lines;
+    std::istringstream stream(yaml);
+    std::string rawLine;
+    int lineNum = 0;
+
+    while (std::getline(stream, rawLine)) {
+        lineNum++;
+
+        // Count indent
+        int indent = 0;
+        for (char c : rawLine) {
+            if (c == ' ') indent++;
+            else break;
+        }
+
+        std::string line = trim(rawLine);
+
+        // Skip empty lines and comments
+        if (line.empty() || line[0] == '#') continue;
+
+        YamlLine yl = {indent, "", "", false, lineNum};
+
+        // Check for list item
+        if (line[0] == '-') {
+            yl.isList = true;
+            line = trim(line.substr(1));
+            if (line.empty()) {
+                lines.push_back(yl);
+                continue;
+            }
+        }
+
+        // Find key: value
+        size_t colonPos = line.find(':');
+        if (colonPos != std::string::npos) {
+            yl.key = trim(line.substr(0, colonPos));
+            yl.value = trim(line.substr(colonPos + 1));
+        } else {
+            yl.value = line;
+        }
+
+        lines.push_back(yl);
     }
 
-    return result;
+    return lines;
+}
+
+// Recursive converter
+size_t convertToJson(const std::vector<YamlLine>& lines, size_t idx, int parentIndent,
+                     bool inArray, std::string& out, ConfigLoadResult& result);
+
+size_t convertObject(const std::vector<YamlLine>& lines, size_t idx, int baseIndent,
+                     std::string& out, ConfigLoadResult& result) {
+    out += "{";
+    bool first = true;
+
+    while (idx < lines.size() && lines[idx].indent > baseIndent) {
+        const YamlLine& line = lines[idx];
+
+        // Skip if this is a list item (handled by convertArray)
+        if (line.isList) break;
+
+        if (!first) out += ",";
+        first = false;
+
+        out += "\"" + escapeJson(line.key) + "\":";
+
+        if (line.value.empty()) {
+            // Check what comes next
+            bool hasChildren = false;
+            bool childIsList = false;
+            if (idx + 1 < lines.size()) {
+                const YamlLine& next = lines[idx + 1];
+                // Child if: higher indent, OR same indent but it's a list item (YAML allows this)
+                if (next.indent > line.indent || (next.indent == line.indent && next.isList)) {
+                    hasChildren = true;
+                    childIsList = next.isList;
+                }
+            }
+
+            if (hasChildren) {
+                const YamlLine& next = lines[idx + 1];
+                if (childIsList) {
+                    // If list is at same indent as key, use lower baseIndent so array loop processes it
+                    int arrayBase = (next.indent == line.indent) ? line.indent - 1 : line.indent;
+                    idx = convertToJson(lines, idx + 1, arrayBase, true, out, result);
+                } else {
+                    idx = convertToJson(lines, idx + 1, line.indent, false, out, result);
+                }
+            } else {
+                out += "\"\"";
+                idx++;
+            }
+        } else {
+            out += valueToJson(line.value);
+            idx++;
+        }
+    }
+
+    out += "}";
+    return idx;
+}
+
+size_t convertArray(const std::vector<YamlLine>& lines, size_t idx, int baseIndent,
+                    std::string& out, ConfigLoadResult& result) {
+    out += "[";
+    bool first = true;
+
+    while (idx < lines.size() && lines[idx].indent > baseIndent && lines[idx].isList) {
+        const YamlLine& line = lines[idx];
+
+        if (!first) out += ",";
+        first = false;
+
+        if (line.key.empty() && !line.value.empty()) {
+            // Simple list value: - value
+            out += valueToJson(line.value);
+            idx++;
+        } else if (line.key.empty() && line.value.empty()) {
+            // List item with nested content: -\n  key: value
+            if (idx + 1 < lines.size() && lines[idx + 1].indent > line.indent) {
+                if (lines[idx + 1].isList) {
+                    idx = convertToJson(lines, idx + 1, line.indent, true, out, result);
+                } else {
+                    idx = convertToJson(lines, idx + 1, line.indent, false, out, result);
+                }
+            } else {
+                out += "null";
+                idx++;
+            }
+        } else {
+            // List item starting with key:value - this is an object
+            // - key: value
+            //   key2: value2
+            out += "{";
+            bool objFirst = true;
+
+            // First property from the list line itself
+            out += "\"" + escapeJson(line.key) + "\":";
+            if (line.value.empty()) {
+                // Nested structure under this key
+                if (idx + 1 < lines.size() && lines[idx + 1].indent > line.indent) {
+                    if (lines[idx + 1].isList) {
+                        idx = convertToJson(lines, idx + 1, line.indent, true, out, result);
+                    } else {
+                        idx = convertToJson(lines, idx + 1, line.indent, false, out, result);
+                    }
+                } else {
+                    out += "\"\"";
+                    idx++;
+                }
+            } else {
+                out += valueToJson(line.value);
+                idx++;
+            }
+            objFirst = false;
+
+            // Continue with sibling properties at same effective indent
+            int objIndent = line.indent + 2; // Properties are indented relative to the dash
+            while (idx < lines.size() && lines[idx].indent >= objIndent && !lines[idx].isList) {
+                const YamlLine& prop = lines[idx];
+                if (prop.indent > objIndent) {
+                    // This is a child, not sibling - should have been handled above
+                    break;
+                }
+
+                if (!objFirst) out += ",";
+                objFirst = false;
+
+                out += "\"" + escapeJson(prop.key) + "\":";
+                if (prop.value.empty()) {
+                    if (idx + 1 < lines.size() && lines[idx + 1].indent > prop.indent) {
+                        if (lines[idx + 1].isList) {
+                            idx = convertToJson(lines, idx + 1, prop.indent, true, out, result);
+                        } else {
+                            idx = convertToJson(lines, idx + 1, prop.indent, false, out, result);
+                        }
+                    } else {
+                        out += "\"\"";
+                        idx++;
+                    }
+                } else {
+                    out += valueToJson(prop.value);
+                    idx++;
+                }
+            }
+
+            out += "}";
+        }
+    }
+
+    out += "]";
+    return idx;
+}
+
+size_t convertToJson(const std::vector<YamlLine>& lines, size_t idx, int parentIndent,
+                     bool inArray, std::string& out, ConfigLoadResult& result) {
+    if (inArray) {
+        return convertArray(lines, idx, parentIndent, out, result);
+    } else {
+        return convertObject(lines, idx, parentIndent, out, result);
+    }
 }
 
 } // anonymous namespace
 
-std::string yamlToJson(const std::string& yaml) {
-    std::vector<Line> lines;
-    std::istringstream stream(yaml);
-    std::string rawLine;
+ConfigLoadResult yamlToJson(const std::string& yaml) {
+    ConfigLoadResult result;
 
-    // Parse all lines
-    while (std::getline(stream, rawLine)) {
-        Line line = parseLine(rawLine);
-        if (!line.key.empty() || line.isList || !line.value.empty()) {
-            lines.push_back(line);
-        }
-    }
+    std::vector<YamlLine> lines = parseYaml(yaml);
 
     if (lines.empty()) {
-        return "{}";
+        result.json = "{}";
+        return result;
     }
 
     std::string json;
-    std::vector<int> indentStack;
-    std::vector<bool> isArrayStack;
-    std::vector<bool> needCommaStack;
 
-    indentStack.push_back(-1);
-    isArrayStack.push_back(false);
-    needCommaStack.push_back(false);
-
-    json += "{";
-
-    for (size_t i = 0; i < lines.size(); i++) {
-        Line& line = lines[i];
-
-        // Close containers that are at higher indent levels
-        while (indentStack.size() > 1 && line.indent <= indentStack.back()) {
-            if (isArrayStack.back()) {
-                json += "]";
-            } else {
-                json += "}";
-            }
-            indentStack.pop_back();
-            isArrayStack.pop_back();
-            needCommaStack.pop_back();
-        }
-
-        // Add comma if needed
-        if (needCommaStack.back()) {
-            json += ",";
-        }
-
-        // Check if next line is a child (higher indent or list)
-        bool hasChildren = false;
-        bool childIsList = false;
-        if (i + 1 < lines.size()) {
-            Line& next = lines[i + 1];
-            if (next.indent > line.indent) {
-                hasChildren = true;
-                childIsList = next.isList;
-            }
-        }
-
-        if (line.isList) {
-            // We're inside a list
-            if (!isArrayStack.back()) {
-                // Start of array (shouldn't normally happen here)
-            }
-
-            if (line.key.empty() && !line.value.empty()) {
-                // Simple list value
-                json += "\"" + escapeJson(unquote(line.value)) + "\"";
-            } else if (!line.key.empty()) {
-                // List item is an object
-                if (hasChildren || !line.value.empty()) {
-                    json += "{\"" + escapeJson(line.key) + "\":";
-                    if (line.value.empty()) {
-                        // Value is a nested structure
-                        if (childIsList) {
-                            json += "[";
-                            indentStack.push_back(line.indent + 2);
-                            isArrayStack.push_back(true);
-                            needCommaStack.push_back(false);
-                        } else {
-                            json += "{";
-                            indentStack.push_back(line.indent + 2);
-                            isArrayStack.push_back(false);
-                            needCommaStack.push_back(false);
-                        }
-                    } else {
-                        json += "\"" + escapeJson(unquote(line.value)) + "\"}";
-                    }
-                } else {
-                    json += "{\"" + escapeJson(line.key) + "\":\"\"}";
-                }
-            }
-        } else {
-            // Regular key: value
-            json += "\"" + escapeJson(line.key) + "\":";
-
-            if (line.value.empty() && hasChildren) {
-                // Value is a nested structure
-                if (childIsList) {
-                    json += "[";
-                    indentStack.push_back(line.indent);
-                    isArrayStack.push_back(true);
-                    needCommaStack.push_back(false);
-                } else {
-                    json += "{";
-                    indentStack.push_back(line.indent);
-                    isArrayStack.push_back(false);
-                    needCommaStack.push_back(false);
-                }
-            } else if (line.value.empty()) {
-                json += "\"\"";
-            } else {
-                // Simple value - try to detect if it's a number
-                std::string val = unquote(line.value);
-                bool isNumber = !val.empty();
-                bool hasDecimal = false;
-                for (size_t j = 0; j < val.length(); j++) {
-                    char c = val[j];
-                    if (j == 0 && c == '-') continue;
-                    if (c == '.' && !hasDecimal) { hasDecimal = true; continue; }
-                    if (!isdigit(c)) { isNumber = false; break; }
-                }
-
-                if (isNumber && !val.empty() && val[0] != '0') {
-                    json += val;
-                } else {
-                    json += "\"" + escapeJson(val) + "\"";
-                }
-            }
-        }
-
-        needCommaStack.back() = true;
+    // Start with root object
+    if (lines[0].isList) {
+        convertArray(lines, 0, -1, json, result);
+    } else {
+        convertObject(lines, 0, -1, json, result);
     }
 
-    // Close any remaining open containers
-    while (indentStack.size() > 1) {
-        if (isArrayStack.back()) {
-            json += "]";
-        } else {
-            json += "}";
-        }
-        indentStack.pop_back();
-        isArrayStack.pop_back();
-        needCommaStack.pop_back();
-    }
-
-    json += "}";
-
-    return json;
+    result.json = json;
+    return result;
 }
 
 } // namespace config
