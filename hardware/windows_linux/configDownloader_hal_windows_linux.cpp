@@ -59,7 +59,7 @@ static bool validateJson(const std::string& json, ConfigLoadResult& result) {
 
     // Basic validation - check required top-level keys
     JsonObject root = doc.as<JsonObject>();
-    if (!root.containsKey("devices") || !root.containsKey("scenes")) {
+    if (!root["devices"].is<JsonObject>() || !root["scenes"].is<JsonObject>()) {
         result.addError(ConfigError::CONFIG_VALIDATION,
                        "Invalid config: missing 'devices' or 'scenes'");
         return false;
@@ -90,14 +90,14 @@ void initConfig() {
 ConfigLoadResult downloadAndLoadConfig(const std::string& url) {
     ConfigLoadResult result;
 
-    // HTTP download not supported in emulator, but we can load from a local file
-    // Treat URL as a local file path for testing
-    omote_log_i("Loading config from local file: %s", url.c_str());
+    // HTTP download not supported in emulator - load from local file instead
+    const char* localFile = "download.yml";
+    omote_log_i("Ignoring URL '%s', loading from local file: %s", url.c_str(), localFile);
 
-    std::ifstream file(url);
+    std::ifstream file(localFile);
     if (!file.is_open()) {
         result.addError(ConfigError::CONFIG_VALIDATION,
-                       "Failed to open file: " + url);
+                       std::string("Failed to open file: ") + localFile);
         return result;
     }
 
@@ -106,7 +106,7 @@ ConfigLoadResult downloadAndLoadConfig(const std::string& url) {
     std::string content = buffer.str();
     file.close();
 
-    omote_log_i("Read %d bytes from file", content.length());
+    omote_log_i("Read %d bytes from %s", content.length(), localFile);
 
     std::string json;
 

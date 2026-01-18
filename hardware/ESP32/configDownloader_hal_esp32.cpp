@@ -72,7 +72,7 @@ static bool validateJson(const std::string& json, ConfigLoadResult& result) {
 
     // Basic validation - check required top-level keys
     JsonObject root = doc.as<JsonObject>();
-    if (!root.containsKey("devices") || !root.containsKey("scenes")) {
+    if (!root["devices"].is<JsonObject>() || !root["scenes"].is<JsonObject>()) {
         result.addError(ConfigError::CONFIG_VALIDATION,
                        "Invalid config: missing 'devices' or 'scenes'");
         return false;

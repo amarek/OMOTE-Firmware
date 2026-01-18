@@ -21,6 +21,9 @@ void configStatus_showDownloading() {
     configStatusModal = lv_msgbox_create(NULL, "Config Download", "Downloading...", NULL, false);
     lv_obj_center(configStatusModal);
     lv_obj_set_width(configStatusModal, 200);
+
+    // Force LVGL to render the modal immediately before the blocking download starts
+    lv_refr_now(NULL);
 }
 
 static std::string stageToString(config::ConfigError::Stage stage) {
