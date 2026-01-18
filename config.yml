@@ -41,10 +41,12 @@ scenes:
         command: Power Toggle
       - device: denon_x4700h
         command: Input TV
+      - device: sony_bravia
+        command: Home        
      
   watch_dvd:
     display_name: Watch DVD
-    keys_default: sony_bravia
+    keys_default: panasonic_dvd
     keys_short:
       VOLUP:
         device: denon_x4700h
@@ -58,17 +60,53 @@ scenes:
     shortcuts:
       - device: panasonic_dvd
         command: Eject
+      - device: panasonic_dvd
+        command: PopUp
+      - device: panasonic_dvd
+        command: Home
         
     start:
       - device: panasonic_dvd
         command: Power
       - device: sony_bravia
-        command: Power        
+        command: Power
       - device: denon_x4700h
         command: Power Toggle
       - delay: 1000       
       - device: denon_x4700h
-        command: Input Blue Ray
+        command: Input TV
+
+  music_tv:
+    display_name: Music TV
+    keys_default: streamer
+    keys_short:
+      VOLUP:
+        device: denon_x4700h
+        command: Volume Up
+      VOLDO:
+        device: denon_x4700h
+        command: Volume Down
+      MUTE:
+        device: denon_x4700h
+        command: Mute
+
+    shortcuts:
+      - device: topping_dac
+        command: Prev Input
+      - device: topping_dac
+        command: Next Input
+    
+    start:
+      - device: sony_bravia
+        command: Power
+      - device: denon_x4700h
+        command: Power Toggle
+      - delay: 500               
+      - device: topping_dac
+        command: Power
+      - delay: 1000       
+      - device: denon_x4700h
+        command: Input Media Player
       
 devices:
   denon_x4700h:
@@ -517,10 +555,12 @@ devices:
       data: '0x40040D800A87'
       nbits: 48
       repeats: 0
+      map_short: CONF
     - name: Home
       data: '0x40040D00EAE7'
       nbits: 48
       repeats: 0
+      map_short: SRC
     - name: HDR Setting
       data: '0x40040D809419'
       nbits: 48
@@ -625,7 +665,7 @@ devices:
     - name: Volume Up
       data: '0x11EE629D'
       repeats: 0
-    - name: Power
+    - name: Volume Down
       data: '0x11EE6897'
       repeats: 0
     - name: Mute
@@ -656,12 +696,137 @@ devices:
       data: '0x11EE08F7'
       repeats: 0
       
-      
-      
-      
-      
-      
-      
-      
-      
-
+  streamer:
+    display_name: Media
+    protocol: RC6
+    commands:
+    - name: Power
+      data: '0xC800F840C'
+      repeats: 0
+      map_short: OFF
+    - name: Rec TV
+      data: '0xC800F8448'
+      repeats: 0
+      map_short: REC
+    - name: Guide
+      data: '0xC800F0426'
+      repeats: 0
+      map_short: INFO
+    - name: Back
+      data: '0xC800F8423'
+      repeats: 0
+      map_short: BACK
+    - name: More
+      data: '0xC800F040F'
+      repeats: 0
+      map_short: CONF
+    - name: Up
+      data: '0xC800F841E'
+      repeats: 0
+      map_short: UP
+    - name: Down
+      data: '0xC800F041F'
+      repeats: 0
+      map_short: DOWN
+    - name: Left
+      data: '0xC800F8420'
+      repeats: 0
+      map_short: LEFT
+    - name: Right
+      data: '0xC800F0421'
+      repeats: 0
+      map_short: RIGHT
+    - name: OK
+      data: '0xC800F8422'
+      repeats: 0
+      map_short: OK
+    - name: Vol Up
+      data: '0xC800F0410'
+      repeats: 0
+      map_short: VOLUP
+    - name: Vol Down
+      data: '0xC800F8411'
+      repeats: 0
+      map_short: VOLDO
+    - name: Chan Up
+      data: '0xC800F0412'
+      repeats: 0
+      map_short: CHUP
+    - name: Chan Down
+      data: '0xC800F8413'
+      repeats: 0
+      map_short: CHDOW
+    - name: Red
+      data: '0xC800F0417'
+      repeats: 0
+      map_short: RED
+    - name: Green
+      data: '0xC800F840D'
+      repeats: 0
+      map_short: GREEN
+    - name: Yellow
+      data: '0xC800F0419'
+      repeats: 0
+      map_short: YELLO
+    - name: Blue
+      data: '0xC800F840B'
+      repeats: 0
+      map_short: BLUE
+    - name: Rewind
+      data: '0xC800F0415'
+      repeats: 0
+      map_short: REWI
+    - name: Pause
+      data: '0xC800F8418'
+      repeats: 0
+    - name: Forward
+      data: '0xC800F0414'
+      repeats: 0
+      map_short: FORW
+    - name: ESC
+      data: '0xC800F840A'
+      repeats: 0
+    - name: Prev
+      data: '0xC800F041B'
+      repeats: 0
+    - name: Play
+      data: '0xC800F8416'
+      repeats: 0
+      map_short: PLAY
+    - name: Next
+      data: '0xC800F041A'
+      repeats: 0
+    - name: Mute
+      data: '0xC800F040E'
+      repeats: 0
+      map_short: MUTE
+    - name: '1'
+      data: '0xC800F8401'
+      repeats: 0
+    - name: '2'
+      data: '0xC800F0402'
+      repeats: 0
+    - name: '3'
+      data: '0xC800F8403'
+      repeats: 0
+    - name: '4'
+      data: '0xC800F0404'
+      repeats: 0
+    - name: '5'
+      data: '0xC800F8405'
+      repeats: 0
+    - name: '6'
+      data: '0xC800F0406'
+      repeats: 0
+    - name: '7'
+      data: '0xC800F8407'
+      repeats: 0
+    - name: '8'
+      data: '0xC800F0408'
+      repeats: 0
+    - name: '9'
+      data: '0xC800F8409'
+      repeats: 0
+    - name: '0'
+      data: '0xC800F0400'
+      repeats: 0
