@@ -1,6 +1,6 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <applicationInternal/config/configDownloader.h>
 #include <applicationInternal/config/yamlToJson.h>
@@ -14,26 +14,26 @@
 namespace config {
 
 static const char* CONFIG_FILE_PATH = "/config.json";
-static bool spiffsMounted = false;
+static bool fsMounted = false;
 
-static bool ensureSpiffsMounted() {
+static bool ensureFsMounted() {
     SCOPED_TIMER();
-    if (!spiffsMounted) {
-        if (!SPIFFS.begin(true)) {
-            omote_log_e("Failed to mount SPIFFS");
+    if (!fsMounted) {
+        if (!LittleFS.begin(true)) {
+            omote_log_e("Failed to mount LittleFS");
             return false;
         }
-        spiffsMounted = true;
+        fsMounted = true;
     }
     return true;
 }
 
 static bool saveConfigToStorage(const std::string& json) {
-    if (!ensureSpiffsMounted()) {
+    if (!ensureFsMounted()) {
         return false;
     }
 
-    File file = SPIFFS.open(CONFIG_FILE_PATH, FILE_WRITE);
+    File file = LittleFS.open(CONFIG_FILE_PATH, FILE_WRITE);
     if (!file) {
         omote_log_e("Failed to open config file for writing");
         return false;
@@ -53,11 +53,11 @@ static bool saveConfigToStorage(const std::string& json) {
 
 static bool loadConfigFromStorage(std::string& json) {
     SCOPED_TIMER();
-    if (!ensureSpiffsMounted()) {
+    if (!ensureFsMounted()) {
         return false;
     }
 
-    File file = SPIFFS.open(CONFIG_FILE_PATH, FILE_READ);
+    File file = LittleFS.open(CONFIG_FILE_PATH, FILE_READ);
     if (!file) {
         // File doesn't exist or can't be opened - this is normal on first boot
         return false;
@@ -202,12 +202,12 @@ ConfigLoadResult downloadAndLoadConfig(const std::string& url) {
 ConfigLoadResult clearPersistedConfig() {
     ConfigLoadResult result;
 
-    if (!ensureSpiffsMounted()) {
-        result.addError(ConfigError::CONFIG_VALIDATION, "Failed to mount SPIFFS");
+    if (!ensureFsMounted()) {
+        result.addError(ConfigError::CONFIG_VALIDATION, "Failed to mount LittleFS");
         return result;
     }
 
-    if (!SPIFFS.remove(CONFIG_FILE_PATH)) {
+    if (!LittleFS.remove(CONFIG_FILE_PATH)) {
         // File might not exist, which is fine
         omote_log_i("No persisted config to delete (or delete failed)");
     } else {
