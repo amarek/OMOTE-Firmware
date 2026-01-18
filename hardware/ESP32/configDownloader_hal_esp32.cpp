@@ -7,16 +7,29 @@
 #include <applicationInternal/config/registry.h>
 #include <applicationInternal/config/parser.h>
 #include <applicationInternal/omote_log.h>
+#include <applicationInternal/scoped_timer.h>
 
 #if (ENABLE_WIFI_AND_MQTT == 1)
 
 namespace config {
 
 static const char* CONFIG_FILE_PATH = "/config.json";
+static bool spiffsMounted = false;
+
+static bool ensureSpiffsMounted() {
+    SCOPED_TIMER();
+    if (!spiffsMounted) {
+        if (!SPIFFS.begin(true)) {
+            omote_log_e("Failed to mount SPIFFS");
+            return false;
+        }
+        spiffsMounted = true;
+    }
+    return true;
+}
 
 static bool saveConfigToStorage(const std::string& json) {
-    if (!SPIFFS.begin(true)) {
-        omote_log_e("Failed to mount SPIFFS");
+    if (!ensureSpiffsMounted()) {
         return false;
     }
 
@@ -39,23 +52,23 @@ static bool saveConfigToStorage(const std::string& json) {
 }
 
 static bool loadConfigFromStorage(std::string& json) {
-    if (!SPIFFS.begin(true)) {
-        omote_log_e("Failed to mount SPIFFS");
-        return false;
-    }
-
-    if (!SPIFFS.exists(CONFIG_FILE_PATH)) {
+    SCOPED_TIMER();
+    if (!ensureSpiffsMounted()) {
         return false;
     }
 
     File file = SPIFFS.open(CONFIG_FILE_PATH, FILE_READ);
     if (!file) {
-        omote_log_e("Failed to open config file for reading");
+        // File doesn't exist or can't be opened - this is normal on first boot
         return false;
     }
-
-    json = file.readString().c_str();
-    file.close();
+    {
+        SCOPED_TIMER_NAMED(read_file);
+        size_t fileSize = file.size();
+        json.resize(fileSize);
+        file.readBytes(&json[0], fileSize);
+        file.close();
+    }
 
     omote_log_w("Config loaded from storage (%d bytes)", json.length());
     return true;
@@ -82,6 +95,7 @@ static bool validateJson(const std::string& json, ConfigLoadResult& result) {
 }
 
 void initConfig() {
+    SCOPED_TIMER();
     std::string json;
 
     // Try to load from storage first
@@ -96,7 +110,7 @@ void initConfig() {
     }
 
     // Fall back to embedded config
-    omote_log_i("Using embedded config");
+    omote_log_w("Using embedded config");
     parseConfig(nullptr);
 }
 
@@ -188,19 +202,16 @@ ConfigLoadResult downloadAndLoadConfig(const std::string& url) {
 ConfigLoadResult clearPersistedConfig() {
     ConfigLoadResult result;
 
-    if (!SPIFFS.begin(true)) {
+    if (!ensureSpiffsMounted()) {
         result.addError(ConfigError::CONFIG_VALIDATION, "Failed to mount SPIFFS");
         return result;
     }
 
-    if (SPIFFS.exists(CONFIG_FILE_PATH)) {
-        if (!SPIFFS.remove(CONFIG_FILE_PATH)) {
-            result.addError(ConfigError::CONFIG_VALIDATION, "Failed to delete config file");
-            return result;
-        }
-        omote_log_w("Persisted config deleted");
+    if (!SPIFFS.remove(CONFIG_FILE_PATH)) {
+        // File might not exist, which is fine
+        omote_log_i("No persisted config to delete (or delete failed)");
     } else {
-        omote_log_i("No persisted config to delete");
+        omote_log_w("Persisted config deleted");
     }
 
     // Reload embedded config
