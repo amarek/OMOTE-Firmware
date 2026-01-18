@@ -5,6 +5,7 @@
 #include <applicationInternal/scenes/sceneRegistry.h>
 #include <applicationInternal/commandHandler.h>
 #include <applicationInternal/omote_log.h>
+#include <applicationInternal/scoped_timer.h>
 #include <applicationInternal/gui/guiMemoryOptimizer.h>
 #include <scenes/scene__default.h>
 #if (ENABLE_WIFI_AND_MQTT == 1)
@@ -116,6 +117,7 @@ Device* config::getDevice(const std::string& id) {
 }
 
 void config::clear() {
+    SCOPED_TIMER();        
     // Clear config::Scene objects
     for (auto& kv : g_scenes) {
         if (kv.second != &allOff) {
@@ -137,6 +139,7 @@ void config::clear() {
 }
 
 config::ConfigLoadResult config::reload(const char* json) {
+    SCOPED_TIMER();    
     clear();
     ConfigLoadResult result = parseConfig(json);
     registerScene(&allOff, NULL);
@@ -146,6 +149,7 @@ config::ConfigLoadResult config::reload(const char* json) {
 }
 
 void config::init() {
+    SCOPED_TIMER();
     #if (ENABLE_WIFI_AND_MQTT == 1)
     // Use initConfig which checks for persisted config first
     initConfig();

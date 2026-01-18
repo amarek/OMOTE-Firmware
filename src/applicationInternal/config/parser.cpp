@@ -5,6 +5,7 @@
 #include <applicationInternal/config/parser.h>
 #include <applicationInternal/commandHandler.h>
 #include <applicationInternal/omote_log.h>
+#include <applicationInternal/scoped_timer.h>
 #include "gui_devices.h"
 #include "gui_scene.h"
 
@@ -58,6 +59,7 @@ static IRProtocolType toProtoType(const char* proto)
 
 void parseDevice(JsonPair device)
 {
+    SCOPED_TIMER();
     omote_log_d("Parsing device: %s", device.key().c_str());
     Device* dev = new Device(device);
 
@@ -170,11 +172,13 @@ void parseSequence(JsonArray sequence, commands_t& out) {
 
 
 void allocateScene(JsonPair def) {
+    SCOPED_TIMER();
     ConfigScene* scene = new ConfigScene(def);
-    registerScene(scene, &scene_guis);    
+    registerScene(scene, &scene_guis);
 }
 
 void parseScene(JsonPair def) {
+    SCOPED_TIMER();
     Scene* scene = getScene(def.value()["display_name"]);
     const char* keys_default = def.value()["keys_default"];
     if(keys_default) {
@@ -228,6 +232,7 @@ void parseScene(JsonPair def) {
 }
 
 config::ConfigLoadResult parseConfig(const char* json) {
+    SCOPED_TIMER();
     config::ConfigLoadResult result;
     currentResult = &result;
 
